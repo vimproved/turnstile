@@ -22,6 +22,7 @@ scdoc_dep = dependency(
 )
 
 have_dinit = get_option('dinit').enabled()
+have_openrc = get_option('openrc').enabled()
 
 conf_data = configuration_data()
 conf_data.set_quoted('RUN_PATH', get_option('rundir'))
@@ -91,6 +92,14 @@ if have_dinit
         'data/dinit/turnstiled',
         install_dir: join_paths(get_option('sysconfdir'), 'dinit.d'),
         install_mode: 'rw-r--r--'
+    )
+endif
+
+if have_dinit
+    install_data(
+        'data/openrc/turnstiled',
+        install_dir: join_paths(get_option('sysconfdir'), 'init.d'),
+        install_mode: 'rwxr-xr-x'
     )
 endif
 

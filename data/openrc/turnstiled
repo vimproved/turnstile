@@ -1,0 +1,5 @@
+#!/sbin/openrc-run
+
+pidfile="/run/turnstiled.pid"
+command="/usr/bin/turnstiled"
+command_background=true
