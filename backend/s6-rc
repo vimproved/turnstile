@@ -1,0 +1,91 @@
+#!/bin/sh
+#
+# This is the turnstile s6-rc backend. It accepts the action as its first
+# argument, which is either "ready", "run", or "stop". The backend can be
+# written in any language, in this case the shebang is used to run it.
+#
+# It also serves as an example of how to implement such backend.
+#
+# Arguments for "ready":
+#
+# dir:      the path to s6-rc's state directory; it is the string that is
+#           written by run into ready_fd for the "run" part of the
+#           process
+#
+# Arguments for "run":
+#
+# ready_p:  path to named pipe (fifo) that should be poked with a string; this
+#           will be passed to the "ready" script of the sequence as its sole
+#           argument (here this is a control socket path)
+# srvdir:   an internal directory that can be used by the service manager
+#           for any purpose (usually to keep track of its state)
+# confdir:  the path where turnstile's configuration data reside, used
+#           to source the configuration file
+#
+# Arguments for "stop":
+#
+# pid:      the PID of the service manager to stop (gracefully); it should
+#           terminate the services it's running and then stop itself
+#
+# How the script manages its configuration and so on is up to the script.
+#
+# Note that the script *must* exec the service manager directly, i.e. the
+# service manager must fully replace the shell process for this to work.
+#
+# Copyright 2023 Violet Purcell <vimproved@inventati.org>
+# License: BSD-2-Clause
+#
+
+# be strict
+set -e
+
+S6_RC_CONF="$4/s6-rc.conf"
+# source the conf
+[ -r "$S6_RC_CONF" ] && . "$S6_RC_CONF"
+
+# set a bunch of defaults in case the conf cannot be read or is mangled
+
+[ -z "$boot_bundle" ] && boot_bundle="boot"
+[ -z "$system_boot_bundle" ] && system_boot_bundle="boot"
+
+if [ -z "$services_dir" ]; then
+    services_dir="${HOME}/.cache/s6-rc"
+fi
+
+case "$1" in
+    run) ;;
+    ready)
+        s6-rc-init -c "${services_dir}" -l "$2/s6-rc" "${2}/scan"
+        exec s6-rc -l "$2/s6-rc" -u change "${boot_bundle}"
+        ;;
+    stop)
+        exec kill -s TERM "$2"
+        ;;
+    *)
+        exit 32
+        ;;
+esac
+
+S6_RC_READY_PIPE="$2"
+S6_RC_DIR="$3"
+
+if [ ! -p "$S6_RC_READY_PIPE" -o ! -d "$S6_RC_DIR" ]; then
+    echo "s6-rc: invalid input argument(s)" >&2
+    exit 69
+fi
+
+if [ -z "$HOME" -o ! -d "$HOME" ]; then
+    echo "s6-rc: invalid home directory" >&2
+    exit 70
+fi
+
+shift $#
+
+mkdir -p "${S6_RC_DIR}/scan"
+
+# Remove livedir if exists
+rm -rf "${S6_RC_DIR}/s6-rc"
+
+echo "${S6_RC_DIR}" >>"${S6_RC_READY_PIPE}"
+
+exec s6-svscan "${S6_RC_DIR}/scan"
